@@ -11,6 +11,7 @@ class RegisterRequest(BaseModel):
     name: str
     email: str
     password: str
+    role: str = "user"  # Default role is 'user'
 
 class LoginRequest(BaseModel):
     email: str
@@ -23,7 +24,7 @@ def register(user_in: RegisterRequest):
     if existing:
         db.close()
         raise HTTPException(status_code=400, detail="Email already registered")
-    user = User(name=user_in.name, email=user_in.email, password_hash=get_password_hash(user_in.password))
+    user = User(name=user_in.name, email=user_in.email, password_hash=get_password_hash(user_in.password), role=user_in.role)
     db.add(user)
     db.commit()
     db.refresh(user)

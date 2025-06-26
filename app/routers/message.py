@@ -21,14 +21,14 @@ def send_message(message_in: MessageCreate):
     db.commit()
     db.refresh(db_message)
     db.close()
-    return db_message
+    return MessageRead.from_orm(db_message)
 
 @router.get("/ticket/{ticket_id}", response_model=List[MessageRead])
 def list_ticket_messages(ticket_id: int):
     db = SessionLocal()
     messages = db.query(Message).filter(Message.ticket_id == ticket_id).order_by(Message.timestamp).all()
     db.close()
-    return messages
+    return [MessageRead.from_orm(m) for m in messages]
 
 @router.get("/user/{user_id}", response_model=List[MessageRead])
 def list_user_messages(user_id: int):
@@ -37,7 +37,7 @@ def list_user_messages(user_id: int):
         ((Message.sender_id == user_id) | (Message.receiver_id == user_id))
     ).order_by(Message.timestamp).all()
     db.close()
-    return messages
+    return [MessageRead.from_orm(m) for m in messages]
 
 @router.post("/{message_id}/read")
 def mark_message_read(message_id: int):

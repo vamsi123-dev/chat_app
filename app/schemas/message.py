@@ -17,4 +17,4 @@ class MessageRead(MessageBase):
     read: bool
 
     class Config:
-        from_attributes = True 
+        orm_mode = True 
