@@ -1,43 +1,42 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.schemas.user import UserCreate, UserRead, UserLogin
 from app.models.user import User
+from app.core.security import get_password_hash, create_access_token, verify_password
 from app.core.database import SessionLocal
-from app.core.security import get_password_hash, verify_password, create_access_token
-from fastapi.security import OAuth2PasswordRequestForm
-from typing import Any
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
 
-@router.post("/register", response_model=UserRead)
-def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == user_in.email).first()
-    if user:
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+@router.post("/register")
+def register(user_in: RegisterRequest):
+    db = SessionLocal()
+    existing = db.query(User).filter(User.email == user_in.email).first()
+    if existing:
+        db.close()
         raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_password = get_password_hash(user_in.password)
-    db_user = User(
-        name=user_in.name,
-        email=user_in.email,
-        role=user_in.role,
-        password_hash=hashed_password,
-        avatar=user_in.avatar
-    )
-    db.add(db_user)
+    user = User(name=user_in.name, email=user_in.email, password_hash=get_password_hash(user_in.password))
+    db.add(user)
     db.commit()
-    db.refresh(db_user)
-    return db_user
+    db.refresh(user)
+    db.close()
+    return {"id": user.id, "email": user.email}
 
 @router.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> Any:
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-    access_token = create_access_token({"sub": str(user.id)})
-    return {"access_token": access_token, "token_type": "bearer"} 
+def login(login_in: LoginRequest):
+    db = SessionLocal()
+    user = db.query(User).filter(User.email == login_in.email).first()
+    if not user or not verify_password(login_in.password, user.password_hash):
+        db.close()
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_access_token({"sub": str(user.id)})
+    db.close()
+    return {"access_token": token, "token_type": "bearer"} 
